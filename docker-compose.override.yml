@@ -1,0 +1,56 @@
+# =====================================================
+# Docker Compose Override for Development
+# =====================================================
+# 
+# This file extends docker-compose.yml with development-specific settings
+# Automatically loaded when running: docker-compose up
+# 
+# Features:
+# - Volume mounts for hot reload
+# - Debug ports
+# - Development tools enabled
+# =====================================================
+
+version: '3.8'
+
+services:
+
+  # Catalog Service - Development overrides
+  catalog-service:
+    build:
+      context: ./CatalogService
+      dockerfile: Dockerfile
+      target: development  # Use development stage in multi-stage Dockerfile
+    environment:
+      # Enable development features
+      ASPNETCORE_ENVIRONMENT: Development
+      Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Information
+    volumes:
+      # Hot reload - mount source code (exclude obj/bin to avoid permission issues)
+      - ./CatalogService:/app
+      - /app/obj
+      - /app/bin
+    ports:
+      # Debug port
+      - "5001:80"
+      - "5011:443"  # HTTPS (optional)
+
+  # Order Service - Development overrides (when ready)
+  # order-service:
+  #   volumes:
+  #     - ./OrderService:/app:ro
+  #   ports:
+  #     - "5002:80"
+
+  # Enable development tools
+  pgadmin:
+    profiles:
+      - ""  # Empty profile means always run
+
+  mongo-express:
+    profiles:
+      - ""
+
+  redis-commander:
+    profiles:
+      - ""

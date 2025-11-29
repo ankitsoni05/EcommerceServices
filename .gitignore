@@ -1,0 +1,140 @@
+# =====================================================
+# .gitignore for E-Commerce Microservices
+# =====================================================
+
+# ===================================================
+# Docker & Environment
+# ===================================================
+.env
+.env.local
+.env.prod
+*.env
+
+# Docker volumes
+volumes/
+data/
+
+# ===================================================
+# .NET
+# ===================================================
+## Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## Visual Studio cache/options
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+## NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+
+## Test Results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+
+# ===================================================
+# Database
+# ===================================================
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# PostgreSQL
+postgres-data/
+
+# MongoDB
+mongo-data/
+
+# Redis
+redis-data/
+
+# ===================================================
+# IDE
+# ===================================================
+.idea/
+*.swp
+*.swo
+*~
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# ===================================================
+# OS Files
+# ===================================================
+.DS_Store
+Thumbs.db
+*.log
+
+# ===================================================
+# Secrets & Certificates
+# ===================================================
+*.pfx
+*.p12
+*.key
+*.pem
+secrets/
+certificates/
+
+# ===================================================
+# Temporary Files
+# ===================================================
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# ===================================================
+# Node (if using frontend)
+# ===================================================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ===================================================
+# Build Artifacts
+# ===================================================
+dist/
+build/
+out/
+publish/
+
+# ===================================================
+# Documentation (Generated)
+# ===================================================
+# Keep manual documentation, ignore generated
+# docs/generated/

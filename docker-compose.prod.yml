@@ -1,0 +1,93 @@
+# =====================================================
+# Docker Compose for Production
+# =====================================================
+# 
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# 
+# Production features:
+# - Optimized builds
+# - No development tools
+# - Health checks
+# - Resource limits
+# - Security hardening
+# =====================================================
+
+version: '3.8'
+
+services:
+
+  # PostgreSQL - Production configuration
+  postgres:
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # From secrets
+    volumes:
+      - postgres-data:/var/lib/postgresql/data:rw
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # MongoDB - Production configuration
+  mongodb:
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}  # From secrets
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  # Redis - Production configuration
+  redis:
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+  # Catalog Service - Production build
+  catalog-service:
+    build:
+      context: ./CatalogService
+      dockerfile: Dockerfile
+      target: final  # Production stage
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__CatalogDb: "Host=postgres;Port=5432;Database=CatalogDb;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      ConnectionStrings__Redis: "redis:6379,password=${REDIS_PASSWORD}"
+      Logging__LogLevel__Default: Warning
+      Logging__LogLevel__Microsoft.EntityFrameworkCore: Error
+    deploy:
+      replicas: 2  # Scale to 2 instances
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  # Disable development tools in production
+  pgadmin:
+    profiles:
+      - disabled
+
+  mongo-express:
+    profiles:
+      - disabled
+
+  redis-commander:
+    profiles:
+      - disabled

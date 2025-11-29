@@ -1,0 +1,242 @@
+# =====================================================
+# Docker Compose for E-Commerce Microservices
+# =====================================================
+# 
+# This file defines the complete microservices architecture:
+# - Multiple API services (Catalog, Order, Basket, etc.)
+# - Shared databases (PostgreSQL, MongoDB, Redis)
+# - Service discovery and communication
+# - Development and production configurations
+#
+# Usage:
+#   Development: docker-compose up
+#   Production:  docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+# =====================================================
+
+version: '3.8'
+
+# =====================================================
+# NETWORKS
+# All services communicate through this network
+# =====================================================
+networks:
+  ecommerce-network:
+    driver: bridge
+
+# =====================================================
+# VOLUMES
+# Persistent data storage for databases
+# =====================================================
+volumes:
+  postgres-data:
+  mongo-data:
+  redis-data:
+
+# =====================================================
+# SERVICES
+# =====================================================
+services:
+
+  # ===================================================
+  # DATABASES
+  # ===================================================
+
+  # PostgreSQL - For relational data (Catalog, Orders)
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecommerce-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_MULTIPLE_DATABASES: CatalogDb,OrderDb,IdentityDb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./databases/postgres/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB - For document storage (Product Reviews, Logs)
+  mongodb:
+    image: mongo:7
+    container_name: ecommerce-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-admin}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - ./databases/mongo/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - For caching and session storage
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - ecommerce-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===================================================
+  # MICROSERVICES
+  # ===================================================
+
+  # Catalog Service - Product catalog management
+  catalog-service:
+    image: catalog-service:latest
+    container_name: catalog-service
+    build:
+      context: ./CatalogService
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # ASP.NET Core
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:80
+      
+      # Database
+      ConnectionStrings__CatalogDb: "Host=postgres;Port=5432;Database=CatalogDb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};Include Error Detail=true"
+      
+      # Redis Cache
+      ConnectionStrings__Redis: "redis:6379"
+      
+      # Logging
+      Logging__LogLevel__Default: ${LOG_LEVEL:-Information}
+      Logging__LogLevel__Microsoft.EntityFrameworkCore: ${EF_LOG_LEVEL:-Warning}
+    ports:
+      - "5001:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Order Service - Order processing (Future)
+  # order-service:
+  #   image: order-service:latest
+  #   container_name: order-service
+  #   build:
+  #     context: ./OrderService
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   environment:
+  #     ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+  #     ASPNETCORE_URLS: http://+:80
+  #     ConnectionStrings__OrderDb: "Host=postgres;Port=5432;Database=OrderDb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}"
+  #   ports:
+  #     - "5002:80"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   networks:
+  #     - ecommerce-network
+
+  # Basket Service - Shopping cart (Future)
+  # basket-service:
+  #   image: basket-service:latest
+  #   container_name: basket-service
+  #   build:
+  #     context: ./BasketService
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   environment:
+  #     ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+  #     ASPNETCORE_URLS: http://+:80
+  #     ConnectionStrings__Redis: "redis:6379"
+  #   ports:
+  #     - "5003:80"
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   networks:
+  #     - ecommerce-network
+
+  # ===================================================
+  # SUPPORTING SERVICES (Optional)
+  # ===================================================
+
+  # pgAdmin - PostgreSQL management UI (Development only)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ecommerce-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@ecommerce.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - ./databases/postgres/pgadmin-servers.json:/pgadmin4/servers.json
+    depends_on:
+      - postgres
+    networks:
+      - ecommerce-network
+    profiles:
+      - development
+
+  # Mongo Express - MongoDB management UI (Development only)
+  mongo-express:
+    image: mongo-express:latest
+    container_name: ecommerce-mongo-express
+    restart: unless-stopped
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_ROOT_USER:-admin}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_ROOT_PASSWORD:-admin}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-admin}@mongodb:27017/
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mongodb
+    networks:
+      - ecommerce-network
+    profiles:
+      - development
+
+  # Redis Commander - Redis management UI (Development only)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ecommerce-redis-commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8082:8081"
+    depends_on:
+      - redis
+    networks:
+      - ecommerce-network
+    profiles:
+      - development
